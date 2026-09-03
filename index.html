@@ -185,6 +185,7 @@ tbody tr:hover{background:var(--surface-alt)}
 <div id="app"></div>
 <input type="file" id="import-file-input" accept="application/json,.json" hidden>
 <input type="file" id="documento-adjunto-input" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.18.0/lib/msal-browser.min.js"></script>
 <script>
 (function(){
 "use strict";
@@ -247,6 +248,123 @@ var RECURSOS_ITEMS = [
 ];
 
 var CALIDAD_EMAILS = ["gestion.calidad@tdea.edu.co", "auxiliar.arl@tdea.edu.co", "bienestar.laboral@tdea.edu.co", "profesional.calidad@tdea.edu.co", "apoyo.ambiental@tdea.edu.co", "gestionambiental@tdea.edu.co"];
+
+/* ---------- Sincronización con SharePoint (Microsoft Graph) ---------- */
+var SP_CLIENT_ID = "984275d1-fb45-4d42-adf0-4181b559a49e";
+var SP_TENANT_ID = "ca3f1d6b-fd1f-40b1-b41a-488b980e9f7f";
+var SP_REDIRECT_URI = "https://rflorez78-source.github.io/gestion-cambio-tdea/";
+var SP_HOSTNAME = "tecnologicodeantioquia.sharepoint.com";
+var SP_SITE_PATH = "/sites/GestindelCambioTdeA";
+var SP_FILE_NAME = "gestion-cambio-datos.json";
+var SP_SCOPES = ["User.Read", "Sites.Selected"];
+
+var SP = { msalApp:null, account:null, siteId:null, syncing:false, lastSync:null, lastError:null };
+
+function initMsal(){
+  if(typeof msal === "undefined") return;
+  try {
+    SP.msalApp = new msal.PublicClientApplication({
+      auth: { clientId: SP_CLIENT_ID, authority: "https://login.microsoftonline.com/"+SP_TENANT_ID, redirectUri: SP_REDIRECT_URI },
+      cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
+    });
+    var cuentas = SP.msalApp.getAllAccounts();
+    if(cuentas && cuentas.length){ SP.account = cuentas[0]; }
+  } catch(e){ /* MSAL no disponible (ej. probando el archivo localmente) */ }
+}
+
+function handleIniciarSesion(){
+  if(!SP.msalApp){ alert("El inicio de sesión con Microsoft solo funciona en la versión publicada de la herramienta (https://rflorez78-source.github.io/gestion-cambio-tdea/), no al abrir el archivo local."); return; }
+  SP.msalApp.loginPopup({ scopes: SP_SCOPES }).then(function(resp){
+    SP.account = resp.account;
+    render();
+  }).catch(function(err){
+    alert("No se pudo iniciar sesión: " + (err && err.message ? err.message : err));
+  });
+}
+
+function handleCerrarSesion(){
+  if(!SP.msalApp || !SP.account) return;
+  SP.msalApp.logoutPopup({ account: SP.account }).catch(function(){});
+  SP.account = null; SP.siteId = null; SP.lastSync = null; SP.lastError = null;
+  render();
+}
+
+function getGraphToken(){
+  return SP.msalApp.acquireTokenSilent({ scopes: SP_SCOPES, account: SP.account }).catch(function(){
+    return SP.msalApp.acquireTokenPopup({ scopes: SP_SCOPES, account: SP.account });
+  }).then(function(r){ return r.accessToken; });
+}
+
+function graphFetch(url, token, options){
+  options = options || {};
+  options.headers = options.headers || {};
+  options.headers["Authorization"] = "Bearer " + token;
+  return fetch(url, options);
+}
+
+function resolveSiteId(token){
+  if(SP.siteId) return Promise.resolve(SP.siteId);
+  var url = "https://graph.microsoft.com/v1.0/sites/" + SP_HOSTNAME + ":" + SP_SITE_PATH;
+  return graphFetch(url, token).then(function(r){
+    if(!r.ok) return r.json().then(function(j){ throw new Error("No se pudo ubicar el sitio de SharePoint: " + (j.error?j.error.message:r.status)); });
+    return r.json();
+  }).then(function(site){ SP.siteId = site.id; return SP.siteId; });
+}
+
+function graphGetRemoteState(token, siteId){
+  var url = "https://graph.microsoft.com/v1.0/sites/" + siteId + "/drive/root:/" + SP_FILE_NAME + ":/content";
+  return graphFetch(url, token).then(function(r){
+    if(r.status === 404) return {cambios:[]};
+    if(!r.ok) return r.json().then(function(j){ throw new Error("No se pudo leer los datos en SharePoint: " + (j.error?j.error.message:r.status)); });
+    return r.json();
+  }).catch(function(e){ if(e instanceof Error) throw e; return {cambios:[]}; });
+}
+
+function graphPutRemoteState(token, siteId, data){
+  var url = "https://graph.microsoft.com/v1.0/sites/" + siteId + "/drive/root:/" + SP_FILE_NAME + ":/content";
+  return graphFetch(url, token, {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data, null, 2)
+  }).then(function(r){
+    if(!r.ok) return r.json().then(function(j){ throw new Error("No se pudo guardar en SharePoint: " + (j.error?j.error.message:r.status)); });
+    return r.json();
+  });
+}
+
+function mergeCambiosPorId(local, remote){
+  var byId = {};
+  (remote.cambios||[]).forEach(function(c){ byId[c.id] = c; });
+  (local.cambios||[]).forEach(function(c){
+    var existente = byId[c.id];
+    if(!existente || (c.actualizadoEn||"") > (existente.actualizadoEn||"")) byId[c.id] = c;
+  });
+  return {cambios: Object.keys(byId).map(function(k){ return byId[k]; })};
+}
+
+function handleSincronizar(){
+  if(!SP.account){ handleIniciarSesion(); return; }
+  if(SP.syncing) return;
+  SP.syncing = true; SP.lastError = null; render();
+  getGraphToken().then(function(token){
+    return resolveSiteId(token).then(function(siteId){
+      return graphGetRemoteState(token, siteId).then(function(remoto){
+        var combinado = mergeCambiosPorId(STATE, remoto);
+        return graphPutRemoteState(token, siteId, combinado).then(function(){ return combinado; });
+      });
+    });
+  }).then(function(combinado){
+    STATE = combinado;
+    saveState();
+    SP.syncing = false;
+    SP.lastSync = new Date().toISOString();
+    render();
+  }).catch(function(err){
+    SP.syncing = false;
+    SP.lastError = err && err.message ? err.message : String(err);
+    render();
+  });
+}
 
 var DOCUMENTO_MAX_BYTES = 2 * 1024 * 1024;
 var DOCUMENTO_EXTENSIONES = [".pdf", ".doc", ".docx"];
@@ -370,6 +488,21 @@ function render(){
   app.innerHTML = renderHeaderHTML() + '<main class="container">' + body + '</main>';
 }
 
+function renderSyncStatusHTML(){
+  var html = '<div class="sync-bar">';
+  if(!SP.account){
+    html += '<button type="button" class="btn btn-secondary" data-action="iniciar-sesion">🔗 Iniciar sesión con Microsoft (respaldo en SharePoint)</button>';
+  } else {
+    html += '<span class="status-pill ok"><span class="status-dot"></span>Conectado como ' + esc(SP.account.username||SP.account.name||"") + '</span>';
+    html += '<button type="button" class="btn btn-secondary" data-action="sincronizar-sharepoint"' + (SP.syncing?' disabled':'') + '>' + (SP.syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar con SharePoint') + '</button>';
+    html += '<button type="button" class="btn btn-secondary" data-action="cerrar-sesion">Cerrar sesión</button>';
+    if(SP.lastSync) html += '<span class="hint">Última sincronización: ' + esc(new Date(SP.lastSync).toLocaleString('es-CO')) + '</span>';
+  }
+  html += '</div>';
+  if(SP.lastError) html += '<div class="banner error">⚠️ ' + esc(SP.lastError) + '</div>';
+  return html;
+}
+
 function renderHeaderHTML(){
   return '' +
   '<div class="app-header"><div class="app-header-inner">' +
@@ -383,7 +516,8 @@ function renderHeaderHTML(){
       '</div>' +
       '<span class="status-pill ok"><span class="status-dot"></span>Guardado en este navegador</span>' +
     '</div>' +
-    '<p class="privacy-note">Esta herramienta no usa internet ni cuentas: cada persona guarda sus datos solo en su propio navegador. Si necesitas un respaldo de tus propios reportes, usa <strong>📤 Exportar mi reporte (JSON)</strong>. Calidad, SST y Ambiental consolidan lo que les envíes desde su propia pestaña.</p>' +
+    '<p class="privacy-note">Cada cambio se guarda primero en este navegador. Si inicias sesión con tu cuenta de Microsoft del TdeA, además queda respaldado en SharePoint y visible para todos — usa <strong>📤 Exportar mi reporte (JSON)</strong> como respaldo adicional si lo necesitas.</p>' +
+    renderSyncStatusHTML() +
     '<div class="sync-bar">' +
       '<button type="button" class="btn btn-secondary" data-action="exportar-json">📤 Exportar mi reporte (JSON)</button>' +
     '</div>' +
@@ -1354,6 +1488,9 @@ function onClick(e){
   else if(action === "trigger-documento"){ document.getElementById("documento-adjunto-input").click(); }
   else if(action === "quitar-documento"){ ui.lider.draft.documentoAdjunto = null; renderDocumentoAdjuntoSection(); }
   else if(action === "editar-desde-detalle"){ loadCambioParaEditar(btn.dataset.id); }
+  else if(action === "iniciar-sesion"){ handleIniciarSesion(); }
+  else if(action === "cerrar-sesion"){ handleCerrarSesion(); }
+  else if(action === "sincronizar-sharepoint"){ handleSincronizar(); }
   else if(action === "descargar-documento"){
     var cambio = STATE.cambios.filter(function(c){ return c.id===btn.dataset.id; })[0];
     if(cambio && cambio.documentoAdjunto) descargarDataUrl(cambio.documentoAdjunto.nombre, cambio.documentoAdjunto.dataUrl);
@@ -1393,6 +1530,7 @@ function bindEvents(){
 
 function boot(){
   bindEvents();
+  initMsal();
   render();
 }
 boot();
