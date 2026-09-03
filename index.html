@@ -267,14 +267,20 @@ function initMsal(){
       auth: { clientId: SP_CLIENT_ID, authority: "https://login.microsoftonline.com/"+SP_TENANT_ID, redirectUri: SP_REDIRECT_URI },
       cache: { cacheLocation: "localStorage", storeAuthStateInCookie: false }
     });
-    var cuentas = SP.msalApp.getAllAccounts();
-    if(cuentas && cuentas.length){ SP.account = cuentas[0]; }
-  } catch(e){ /* MSAL no disponible (ej. probando el archivo localmente) */ }
+    SP.initPromise = SP.msalApp.initialize().then(function(){
+      return SP.msalApp.handleRedirectPromise();
+    }).then(function(){
+      var cuentas = SP.msalApp.getAllAccounts();
+      if(cuentas && cuentas.length){ SP.account = cuentas[0]; render(); }
+    }).catch(function(e){ SP.lastError = e && e.message ? e.message : String(e); });
+  } catch(e){ SP.initPromise = Promise.resolve(); }
 }
 
 function handleIniciarSesion(){
   if(!SP.msalApp){ alert("El inicio de sesión con Microsoft solo funciona en la versión publicada de la herramienta (https://rflorez78-source.github.io/gestion-cambio-tdea/), no al abrir el archivo local."); return; }
-  SP.msalApp.loginPopup({ scopes: SP_SCOPES }).then(function(resp){
+  Promise.resolve(SP.initPromise).then(function(){
+    return SP.msalApp.loginPopup({ scopes: SP_SCOPES });
+  }).then(function(resp){
     SP.account = resp.account;
     render();
   }).catch(function(err){
@@ -290,8 +296,10 @@ function handleCerrarSesion(){
 }
 
 function getGraphToken(){
-  return SP.msalApp.acquireTokenSilent({ scopes: SP_SCOPES, account: SP.account }).catch(function(){
-    return SP.msalApp.acquireTokenPopup({ scopes: SP_SCOPES, account: SP.account });
+  return Promise.resolve(SP.initPromise).then(function(){
+    return SP.msalApp.acquireTokenSilent({ scopes: SP_SCOPES, account: SP.account }).catch(function(){
+      return SP.msalApp.acquireTokenPopup({ scopes: SP_SCOPES, account: SP.account });
+    });
   }).then(function(r){ return r.accessToken; });
 }
 
