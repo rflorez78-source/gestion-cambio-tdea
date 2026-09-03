@@ -266,7 +266,7 @@ var SP_REDIRECT_URI = "https://rflorez78-source.github.io/gestion-cambio-tdea/";
 var SP_HOSTNAME = "tecnologicodeantioquia.sharepoint.com";
 var SP_SITE_PATH = "/sites/GestindelCambioTdeA";
 var SP_FILE_NAME = "gestion-cambio-datos.json";
-var SP_SCOPES = ["User.Read", "Sites.Selected"];
+var SP_SCOPES = ["User.Read", "Sites.Selected", "Mail.Send"];
 
 var SP = { msalApp:null, account:null, siteId:null, syncing:false, lastSync:null, lastError:null, checked:false };
 
@@ -351,6 +351,66 @@ function graphPutRemoteState(token, siteId, data){
   });
 }
 
+function base64FromString(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function buildAvisoAutomaticoBody(cambio){
+  var lineas = [
+    "Se registró un cambio en la herramienta de Gestión del Cambio (FO-GTH-41). Este aviso se envió automáticamente al sincronizar con SharePoint.",
+    "",
+    "Nombre del cambio: " + (cambio.nombreCambio || "—"),
+    "Tipo de cambio: " + (cambio.tipoCambio || "—"),
+    "Impacto del cambio: " + (IMPACTO_ITEMS.filter(function(it){ return cambio.impactoCambio && cambio.impactoCambio[it.key]; }).map(function(it){ return it.label; }).join(", ") || "—"),
+    "Fecha de identificación: " + fmtDate(cambio.fechaIdentificacion),
+    "Procesos involucrados: " + ((cambio.procesos||[]).join(", ") || "—"),
+    "Documentado por: " + (cambio.documentaCambio || "—"),
+    "Fuente del cambio: " + (cambio.fuenteCambio || "—"),
+    "",
+    "Descripción: " + truncar(cambio.descripcion, 400),
+    "",
+    'Va adjunto el detalle completo en JSON' + (cambio.documentoAdjunto ? ' junto con el documento de soporte "'+cambio.documentoAdjunto.nombre+'"' : '') + '. También puedes consultarlo iniciando sesión en la herramienta y sincronizando con SharePoint: ' + SP_REDIRECT_URI,
+    "",
+    "— Enviado automáticamente desde la herramienta Gestión del Cambio (FO-GTH-41)."
+  ];
+  return lineas.join("\n");
+}
+
+function enviarAvisoAutomatico(token, cambio){
+  var attachments = [{
+    "@odata.type": "#microsoft.graph.fileAttachment",
+    name: "cambio_" + (cambio.id||"registro") + ".json",
+    contentType: "application/json",
+    contentBytes: base64FromString(JSON.stringify({formato:"FO-GTH-41", version:1, exportadoEn:new Date().toISOString(), cambios:[cambio]}, null, 2))
+  }];
+  if(cambio.documentoAdjunto && cambio.documentoAdjunto.dataUrl){
+    var partes = String(cambio.documentoAdjunto.dataUrl).split(",");
+    if(partes.length === 2){
+      attachments.push({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: cambio.documentoAdjunto.nombre,
+        contentType: cambio.documentoAdjunto.tipo || "application/octet-stream",
+        contentBytes: partes[1]
+      });
+    }
+  }
+  var mensaje = {
+    message: {
+      subject: "Nuevo cambio registrado (FO-GTH-41): " + (cambio.nombreCambio || "sin nombre"),
+      body: { contentType: "Text", content: buildAvisoAutomaticoBody(cambio) },
+      toRecipients: CALIDAD_EMAILS.map(function(email){ return {emailAddress:{address:email}}; }),
+      attachments: attachments
+    },
+    saveToSentItems: true
+  };
+  return graphFetch("https://graph.microsoft.com/v1.0/me/sendMail", token, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(mensaje)
+  }).then(function(r){
+    if(!r.ok) return r.json().then(function(j){ throw new Error("No se pudo enviar el aviso automático: " + (j.error?j.error.message:r.status)); });
+    return true;
+  });
+}
+
 function mergeCambiosPorId(local, remote){
   var byId = {};
   (remote.cambios||[]).forEach(function(c){ byId[c.id] = c; });
@@ -365,11 +425,28 @@ function handleSincronizar(){
   if(!SP.account){ handleIniciarSesion(); return; }
   if(SP.syncing) return;
   SP.syncing = true; SP.lastError = null; render();
+  var tokenActual;
   getGraphToken().then(function(token){
+    tokenActual = token;
     return resolveSiteId(token).then(function(siteId){
       return graphGetRemoteState(token, siteId).then(function(remoto){
+        var remotoIds = {};
+        (remoto.cambios||[]).forEach(function(c){ remotoIds[c.id] = c; });
         var combinado = mergeCambiosPorId(STATE, remoto);
-        return graphPutRemoteState(token, siteId, combinado).then(function(){ return combinado; });
+        var pendientesAviso = combinado.cambios.filter(function(c){
+          var anterior = remotoIds[c.id];
+          var esNuevoOActualizado = !anterior || (c.actualizadoEn||"") > (anterior.actualizadoEn||"");
+          return esNuevoOActualizado && !c.avisoAutoEnviado;
+        });
+        var cadenaAvisos = Promise.resolve();
+        pendientesAviso.forEach(function(c){
+          cadenaAvisos = cadenaAvisos.then(function(){
+            return enviarAvisoAutomatico(tokenActual, c).then(function(){ c.avisoAutoEnviado = true; }).catch(function(){ /* no bloquear la sincronización si un correo puntual falla */ });
+          });
+        });
+        return cadenaAvisos.then(function(){
+          return graphPutRemoteState(token, siteId, combinado).then(function(){ return combinado; });
+        });
       });
     });
   }).then(function(combinado){
