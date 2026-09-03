@@ -269,7 +269,6 @@ var SP_FILE_NAME = "gestion-cambio-datos.json";
 var SP_SCOPES = ["User.Read", "Sites.Selected"];
 
 var SP = { msalApp:null, account:null, siteId:null, syncing:false, lastSync:null, lastError:null, checked:false };
-window.__debugSP = SP;
 
 function initMsal(){
   if(typeof msal === "undefined") return;
@@ -487,7 +486,6 @@ var ui = {
   lider: {mode:"new", draft: emptyDraft(), notice:null},
   calidad: {filters:{proceso:"",tipo:"",estado:"",desde:"",hasta:"",responsable:"",q:""}, detailId:null, commentDraft:""}
 };
-window.__debugUI = ui;
 
 function downloadFile(filename, mime, content){
   var blob = new Blob([content], {type: mime});
