@@ -188,8 +188,6 @@ tbody tr:hover{background:var(--surface-alt)}
   .detail-grid{grid-template-columns:1fr}
 }
 .sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
-.import-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--accent-lime-soft);border:1px solid var(--accent-lime);border-radius:10px;padding:12px 16px;margin-bottom:16px}
-.import-bar .muted-hint{color:var(--text)}
 .sync-bar .muted-hint{flex-basis:100%}
 </style>
 </head>
@@ -1070,10 +1068,7 @@ function filteredCambios(){
 }
 
 function renderCalidadTabHTML(){
-  var html = '<div class="import-bar">' +
-    '<button type="button" class="btn btn-accent-lime" data-action="trigger-import">📥 Importar reporte de un líder (JSON)</button>' +
-    '<span class="muted-hint">Usa esto cada vez que un líder te envíe el archivo de un cambio, para sumarlo a este consolidado. Si ya existe (mismo nombre o ID), se actualiza en vez de duplicarse.</span>' +
-  '</div>';
+  var html = '';
   var f = ui.calidad.filters;
   var procesoOpts = '<option value="">Todos los procesos</option>' + distinctProcesos().map(function(p){
     return '<option value="'+esc(p)+'" '+(f.proceso===p?"selected":"")+'>'+esc(p)+'</option>';
@@ -1097,6 +1092,7 @@ function renderCalidadTabHTML(){
     '<div class="field-actions">' +
       '<button type="button" class="btn-sm" data-action="limpiar-filtros">Limpiar filtros</button>' +
       '<button type="button" class="btn btn-secondary" data-action="exportar-excel">Exportar a Excel</button>' +
+      '<button type="button" class="btn btn-accent-lime" data-action="trigger-import" title="Usa esto cada vez que un líder te envíe el archivo de un cambio (sin cuenta institucional), para sumarlo a este consolidado.">📥 Importar reporte de un líder (JSON)</button>' +
     '</div>' +
   '</div>';
 
