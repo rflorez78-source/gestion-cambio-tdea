@@ -112,6 +112,8 @@ textarea{resize:vertical;min-height:56px}
 .btn-accent-lime{background:var(--accent-lime);color:#1c2e08}
 .btn-accent-lime:hover{filter:brightness(.95)}
 .btn-secondary:hover{background:var(--gray-soft)}
+.btn-danger{background:var(--danger-soft);color:var(--danger);border:1px solid var(--danger)}
+.btn-danger:hover{background:var(--danger);color:#fff}
 .btn-sm{padding:7px 12px;font-size:.8rem;border-radius:7px;background:var(--surface-alt);border:1px solid var(--border);color:var(--text);cursor:pointer}
 .btn-icon{background:none;border:1px solid var(--border);border-radius:7px;width:28px;height:28px;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;justify-content:center}
 .btn-icon.danger:hover{background:var(--danger-soft);color:var(--danger);border-color:var(--danger)}
@@ -557,6 +559,10 @@ function saveState(){
 
 var STATE = loadState();
 
+function cambiosActivos(){
+  return STATE.cambios.filter(function(c){ return !c.eliminado; });
+}
+
 var ui = {
   tab: "lider",
   gateDismissed: false,
@@ -648,7 +654,7 @@ function renderHeaderHTML(){
 /* ---------- LIDER TAB ---------- */
 function renderLiderTabHTML(){
   var d = ui.lider.draft;
-  var sorted = STATE.cambios.slice().sort(function(a,b){ return (b.actualizadoEn||"").localeCompare(a.actualizadoEn||""); });
+  var sorted = cambiosActivos().sort(function(a,b){ return (b.actualizadoEn||"").localeCompare(a.actualizadoEn||""); });
   var options = '<option value="">— Selecciona un cambio para editar —</option>' + sorted.map(function(c){
     var sel = (ui.lider.mode==="edit" && d.id===c.id) ? "selected" : "";
     return '<option value="'+esc(c.id)+'" '+sel+'>'+esc(c.nombreCambio||"(sin nombre)")+' — '+fmtDate(c.fechaIdentificacion)+'</option>';
@@ -1012,20 +1018,38 @@ function handleAgregarComentario(){
   renderCalidadResults();
 }
 
+function handleEliminarCambio(id){
+  var idx = STATE.cambios.findIndex(function(c){ return c.id===id; });
+  if(idx<0) return;
+  var cambio = STATE.cambios[idx];
+  var ok = window.confirm('¿Seguro que quieres eliminar el cambio "'+(cambio.nombreCambio||"sin nombre")+'"? Esta acción no se puede deshacer desde la herramienta.');
+  if(!ok) return;
+  var newCambios = STATE.cambios.slice();
+  var eliminado = deepClone(cambio);
+  eliminado.eliminado = true;
+  eliminado.actualizadoEn = new Date().toISOString();
+  newCambios[idx] = eliminado;
+  STATE = {cambios:newCambios};
+  saveState();
+  ui.calidad.detailId = null;
+  ui.calidad.commentDraft = "";
+  render();
+}
+
 /* ---------- CALIDAD TAB ---------- */
 function distinctProcesos(){
   var s = {};
-  STATE.cambios.forEach(function(c){ (c.procesos||[]).forEach(function(p){ s[p]=true; }); });
+  cambiosActivos().forEach(function(c){ (c.procesos||[]).forEach(function(p){ s[p]=true; }); });
   return Object.keys(s).sort();
 }
 function distinctTipos(){
   var s = {};
-  STATE.cambios.forEach(function(c){ if(c.tipoCambio) s[c.tipoCambio]=true; });
+  cambiosActivos().forEach(function(c){ if(c.tipoCambio) s[c.tipoCambio]=true; });
   return Object.keys(s).sort();
 }
 function filteredCambios(){
   var f = ui.calidad.filters;
-  return STATE.cambios.filter(function(c){
+  return cambiosActivos().filter(function(c){
     if(f.proceso && (c.procesos||[]).indexOf(f.proceso)===-1) return false;
     if(f.tipo && c.tipoCambio !== f.tipo) return false;
     if(f.estado && estadoGeneral(c) !== f.estado) return false;
@@ -1082,7 +1106,7 @@ function renderCalidadTabHTML(){
 }
 
 function renderCalidadResultsHTML(){
-  var all = STATE.cambios;
+  var all = cambiosActivos();
   var list = filteredCambios();
   var totalEnProceso = all.filter(function(c){ return estadoGeneral(c)==="En proceso"; }).length;
   var totalSinIniciar = all.filter(function(c){ return estadoGeneral(c)==="Sin iniciar"; }).length;
@@ -1182,7 +1206,8 @@ function renderDetailHTML(){
       '<div class="field field-wide" style="margin-top:10px">' +
         '<textarea rows="2" data-comment-draft placeholder="Escribe un comentario de seguimiento para el líder…">'+esc(ui.calidad.commentDraft)+'</textarea>' +
         '<div style="margin-top:8px"><button type="button" class="btn btn-primary" data-action="agregar-comentario">Agregar comentario</button> ' +
-        '<button type="button" class="btn btn-secondary" data-action="editar-desde-detalle" data-id="'+c.id+'">Editar como líder</button></div>' +
+        '<button type="button" class="btn btn-secondary" data-action="editar-desde-detalle" data-id="'+c.id+'">Editar como líder</button> ' +
+        '<button type="button" class="btn btn-danger" data-action="eliminar-cambio" data-id="'+c.id+'">🗑️ Eliminar este cambio</button></div>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -1598,6 +1623,7 @@ function onClick(e){
   else if(action === "trigger-documento"){ document.getElementById("documento-adjunto-input").click(); }
   else if(action === "quitar-documento"){ ui.lider.draft.documentoAdjunto = null; renderDocumentoAdjuntoSection(); }
   else if(action === "editar-desde-detalle"){ loadCambioParaEditar(btn.dataset.id); }
+  else if(action === "eliminar-cambio"){ handleEliminarCambio(btn.dataset.id); }
   else if(action === "iniciar-sesion"){ handleIniciarSesion(); }
   else if(action === "continuar-sin-sesion"){ ui.gateDismissed = true; render(); }
   else if(action === "cerrar-sesion"){ handleCerrarSesion(); }
