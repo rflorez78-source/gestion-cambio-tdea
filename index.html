@@ -351,10 +351,6 @@ function graphPutRemoteState(token, siteId, data){
   });
 }
 
-function base64FromString(str){
-  return btoa(unescape(encodeURIComponent(str)));
-}
-
 function buildAvisoAutomaticoBody(cambio){
   var lineas = [
     "Se registró un cambio en la herramienta de Gestión del Cambio (FO-GTH-41). Este aviso se envió automáticamente al sincronizar con SharePoint.",
@@ -369,7 +365,7 @@ function buildAvisoAutomaticoBody(cambio){
     "",
     "Descripción: " + truncar(cambio.descripcion, 400),
     "",
-    'Va adjunto el detalle completo en JSON' + (cambio.documentoAdjunto ? ' junto con el documento de soporte "'+cambio.documentoAdjunto.nombre+'"' : '') + '. También puedes consultarlo iniciando sesión en la herramienta y sincronizando con SharePoint: ' + SP_REDIRECT_URI,
+    (cambio.documentoAdjunto ? 'Va adjunto el documento de soporte "'+cambio.documentoAdjunto.nombre+'". ' : '') + 'Puedes consultar el detalle completo iniciando sesión en la herramienta y sincronizando con SharePoint: ' + SP_REDIRECT_URI,
     "",
     "— Enviado automáticamente desde la herramienta Gestión del Cambio (FO-GTH-41)."
   ];
@@ -377,12 +373,7 @@ function buildAvisoAutomaticoBody(cambio){
 }
 
 function enviarAvisoAutomatico(token, cambio){
-  var attachments = [{
-    "@odata.type": "#microsoft.graph.fileAttachment",
-    name: "cambio_" + (cambio.id||"registro") + ".json",
-    contentType: "application/json",
-    contentBytes: base64FromString(JSON.stringify({formato:"FO-GTH-41", version:1, exportadoEn:new Date().toISOString(), cambios:[cambio]}, null, 2))
-  }];
+  var attachments = [];
   if(cambio.documentoAdjunto && cambio.documentoAdjunto.dataUrl){
     var partes = String(cambio.documentoAdjunto.dataUrl).split(",");
     if(partes.length === 2){
