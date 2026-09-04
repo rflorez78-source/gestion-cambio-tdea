@@ -636,11 +636,8 @@ function renderHeaderHTML(){
       '</div>' +
       '<span class="status-pill ok"><span class="status-dot"></span>Guardado en este navegador</span>' +
     '</div>' +
-    '<p class="privacy-note">Cada cambio se guarda primero en este navegador. Si inicias sesión con tu cuenta de Microsoft del TdeA, además queda respaldado en SharePoint y visible para todos — usa <strong>📤 Exportar mi reporte (JSON)</strong> como respaldo adicional si lo necesitas.</p>' +
+    '<p class="privacy-note">Cada cambio se guarda primero en este navegador. Si inicias sesión con tu cuenta de Microsoft del TdeA, además queda respaldado en SharePoint y visible para Calidad, SST y Ambiental.</p>' +
     renderSyncStatusHTML() +
-    '<div class="sync-bar">' +
-      '<button type="button" class="btn btn-secondary" data-action="exportar-json">📤 Exportar mi reporte (JSON)</button>' +
-    '</div>' +
     '<div class="tabs">' +
       '<button type="button" class="tab-btn ' + (ui.tab==="lider"?"active":"") + '" data-action="switch-tab" data-tab="lider">Reportar cambio (Líder de proceso)</button>' +
       '<button type="button" class="tab-btn ' + (ui.tab==="calidad"?"active":"") + '" data-action="switch-tab" data-tab="calidad">Vista Calidad, SST y Ambiental</button>' +
@@ -1460,12 +1457,6 @@ function handleExportExcel(){
   downloadFile("control_cambios_fo_gth_41_"+todayISO()+".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", zipBytes);
 }
 
-function handleExportJSON(){
-  if(!STATE.cambios.length){ alert("Todavía no hay cambios registrados en este navegador para exportar."); return; }
-  var payload = {formato:"FO-GTH-41", version:1, exportadoEn:new Date().toISOString(), cambios:STATE.cambios};
-  downloadFile("cambios_fo_gth_41_"+todayISO()+".json", "application/json", JSON.stringify(payload, null, 2));
-}
-
 function handleImportJSONFile(file){
   var reader = new FileReader();
   reader.onload = function(){
@@ -1603,7 +1594,6 @@ function onClick(e){
   else if(action === "agregar-comentario"){ handleAgregarComentario(); }
   else if(action === "limpiar-filtros"){ ui.calidad.filters = {proceso:"",tipo:"",estado:"",desde:"",hasta:"",responsable:"",q:""}; render(); }
   else if(action === "exportar-excel"){ handleExportExcel(); }
-  else if(action === "exportar-json"){ handleExportJSON(); }
   else if(action === "trigger-import"){ document.getElementById("import-file-input").click(); }
   else if(action === "trigger-documento"){ document.getElementById("documento-adjunto-input").click(); }
   else if(action === "quitar-documento"){ ui.lider.draft.documentoAdjunto = null; renderDocumentoAdjuntoSection(); }
