@@ -911,8 +911,14 @@ function handleGuardar(){
   }
   ui.lider.mode = "edit";
   ui.lider.draft = deepClone(result.cambio);
-  ui.lider.notice = {type:"info", text:'Reporte guardado en este navegador. Usa "Enviar aviso a Calidad, SST y Ambiental" para notificar el registro, o "Exportar mi reporte (JSON)" para respaldarlo.'};
-  render();
+  if(SP.account){
+    ui.lider.notice = {type:"info", text:"Reporte guardado. Sincronizando con SharePoint automáticamente…"};
+    render();
+    handleSincronizar();
+  } else {
+    ui.lider.notice = {type:"info", text:'Reporte guardado en este navegador. Si inicias sesión con tu cuenta de Microsoft, se sincroniza solo con SharePoint cada vez que guardes.'};
+    render();
+  }
 }
 
 function truncar(s, max){
