@@ -188,6 +188,8 @@ tbody tr:hover{background:var(--surface-alt)}
   .detail-grid{grid-template-columns:1fr}
 }
 .sync-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 4px}
+.btn-icon.spin{animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .sync-bar .muted-hint{flex-basis:100%}
 </style>
 </head>
@@ -610,10 +612,10 @@ function renderSyncStatusHTML(){
   if(!SP.account){
     html += '<button type="button" class="btn btn-secondary" data-action="iniciar-sesion">🔗 Iniciar sesión con Microsoft (respaldo en SharePoint)</button>';
   } else {
+    var syncTitle = SP.syncing ? "Sincronizando…" : (SP.lastSync ? "Última sincronización: " + new Date(SP.lastSync).toLocaleString('es-CO') + " — clic para sincronizar ahora" : "Sincronizar con SharePoint");
     html += '<span class="status-pill ok"><span class="status-dot"></span>Conectado como ' + esc(SP.account.username||SP.account.name||"") + '</span>';
-    html += '<button type="button" class="btn btn-secondary" data-action="sincronizar-sharepoint"' + (SP.syncing?' disabled':'') + '>' + (SP.syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar con SharePoint') + '</button>';
-    html += '<button type="button" class="btn btn-secondary" data-action="cerrar-sesion">Cerrar sesión</button>';
-    if(SP.lastSync) html += '<span class="hint">Última sincronización: ' + esc(new Date(SP.lastSync).toLocaleString('es-CO')) + '</span>';
+    html += '<button type="button" class="btn-icon' + (SP.syncing?' spin':'') + '" data-action="sincronizar-sharepoint" title="'+esc(syncTitle)+'"' + (SP.syncing?' disabled':'') + '>🔄</button>';
+    html += '<button type="button" class="btn-link" data-action="cerrar-sesion">Cerrar sesión</button>';
   }
   html += '</div>';
   if(SP.lastError) html += '<div class="banner error">⚠️ ' + esc(SP.lastError) + '</div>';
