@@ -268,7 +268,7 @@ var SP_SITE_PATH = "/sites/GestindelCambioTdeA";
 var SP_FILE_NAME = "gestion-cambio-datos.json";
 var SP_SCOPES = ["User.Read", "Sites.Selected", "Mail.Send"];
 
-var SP = { msalApp:null, account:null, siteId:null, syncing:false, lastSync:null, lastError:null, checked:false };
+var SP = { msalApp:null, account:null, siteId:null, syncing:false, lastSync:null, lastError:null, checked:false, loggingIn:false };
 
 function initMsal(){
   if(typeof msal === "undefined") return;
@@ -289,27 +289,26 @@ function initMsal(){
 
 function handleIniciarSesion(){
   if(!SP.msalApp){ alert("El inicio de sesión con Microsoft solo funciona en la versión publicada de la herramienta (https://rflorez78-source.github.io/gestion-cambio-tdea/), no al abrir el archivo local."); return; }
+  if(SP.loggingIn) return;
+  SP.loggingIn = true;
   Promise.resolve(SP.initPromise).then(function(){
-    return SP.msalApp.loginPopup({ scopes: SP_SCOPES });
-  }).then(function(resp){
-    SP.account = resp.account;
-    render();
+    return SP.msalApp.loginRedirect({ scopes: SP_SCOPES });
   }).catch(function(err){
+    SP.loggingIn = false;
     alert("No se pudo iniciar sesión: " + (err && err.message ? err.message : err));
   });
 }
 
 function handleCerrarSesion(){
   if(!SP.msalApp || !SP.account) return;
-  SP.msalApp.logoutPopup({ account: SP.account }).catch(function(){});
-  SP.account = null; SP.siteId = null; SP.lastSync = null; SP.lastError = null;
-  render();
+  SP.msalApp.logoutRedirect({ account: SP.account }).catch(function(){});
 }
 
 function getGraphToken(){
   return Promise.resolve(SP.initPromise).then(function(){
     return SP.msalApp.acquireTokenSilent({ scopes: SP_SCOPES, account: SP.account }).catch(function(){
-      return SP.msalApp.acquireTokenPopup({ scopes: SP_SCOPES, account: SP.account });
+      SP.msalApp.acquireTokenRedirect({ scopes: SP_SCOPES, account: SP.account });
+      return new Promise(function(){}); // la página va a navegar; no hay nada más que resolver aquí
     });
   }).then(function(r){ return r.accessToken; });
 }
