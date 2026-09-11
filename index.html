@@ -283,7 +283,10 @@ function initMsal(){
       var cuentas = SP.msalApp.getAllAccounts();
       if(cuentas && cuentas.length){ SP.account = cuentas[0]; }
     }).catch(function(e){ SP.lastError = e && e.message ? e.message : String(e); })
-    .then(function(){ SP.checked = true; render(); });
+    .then(function(){
+      SP.checked = true; render();
+      if(SP.account) handleSincronizar();
+    });
   } catch(e){ SP.initPromise = Promise.resolve(); }
 }
 
