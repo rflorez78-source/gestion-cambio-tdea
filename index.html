@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gestión del Cambio · FO-GTH-41</title>
+<title>Radar Cambios · FO-GTH-41</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
@@ -357,7 +357,7 @@ function graphPutRemoteState(token, siteId, data){
 
 function buildAvisoAutomaticoBody(cambio){
   var lineas = [
-    "Se registró un cambio en la herramienta de Gestión del Cambio (FO-GTH-41). Este aviso se envió automáticamente al sincronizar con SharePoint.",
+    "Se registró un cambio en Radar Cambios (FO-GTH-41). Este aviso se envió automáticamente al sincronizar con SharePoint.",
     "",
     "Nombre del cambio: " + (cambio.nombreCambio || "—"),
     "Tipo de cambio: " + (cambio.tipoCambio || "—"),
@@ -371,7 +371,7 @@ function buildAvisoAutomaticoBody(cambio){
     "",
     (cambio.documentoAdjunto ? 'Va adjunto el documento de soporte "'+cambio.documentoAdjunto.nombre+'". ' : '') + 'Puedes consultar el detalle completo iniciando sesión en la herramienta y sincronizando con SharePoint: ' + SP_REDIRECT_URI,
     "",
-    "— Enviado automáticamente desde la herramienta Gestión del Cambio (FO-GTH-41)."
+    "— Enviado automáticamente desde Radar Cambios (FO-GTH-41)."
   ];
   return lineas.join("\n");
 }
@@ -598,7 +598,7 @@ function renderWelcomeGateHTML(){
     '<div class="welcome-card">' +
       '<span class="brand-logo welcome-logo"><img src="'+LOGO_DATA_URI+'" alt="Tecnológico de Antioquia — Institución Universitaria"></span>' +
       '<span class="app-eyebrow">Sistema de Gestión Integral</span>' +
-      '<h1>Gestión del <span class="accent-word">Cambio</span> <span class="format-badge">FO-GTH-41 · v01</span></h1>' +
+      '<h1>Radar <span class="accent-word">Cambios</span> <span class="format-badge">FO-GTH-41 · v01</span></h1>' +
       '<p class="welcome-text">Inicia sesión con tu cuenta institucional del TdeA para que tus registros queden respaldados automáticamente en SharePoint y visibles para Calidad, SST y Ambiental.</p>' +
       (SP.lastError ? '<div class="banner error">⚠️ ' + esc(SP.lastError) + '</div>' : '') +
       '<button type="button" class="btn btn-primary welcome-btn" data-action="iniciar-sesion">🔗 Iniciar sesión con Microsoft</button>' +
@@ -630,7 +630,7 @@ function renderHeaderHTML(){
         '<span class="brand-logo"><img src="'+LOGO_DATA_URI+'" alt="Tecnológico de Antioquia — Institución Universitaria"></span>' +
         '<span class="app-title-text">' +
           '<span class="app-eyebrow">Sistema de Gestión Integral</span>' +
-          '<span class="app-title-main"><h1>Gestión del <span class="accent-word">Cambio</span></h1><span class="format-badge">FO-GTH-41 · v01</span></span>' +
+          '<span class="app-title-main"><h1>Radar <span class="accent-word">Cambios</span></h1><span class="format-badge">FO-GTH-41 · v01</span></span>' +
         '</span>' +
       '</div>' +
       '<span class="status-pill ok"><span class="status-dot"></span>Guardado en este navegador</span>' +
@@ -937,7 +937,7 @@ function buildMailtoAviso(cambio, filename, resumido){
   var to = CALIDAD_EMAILS.join(",");
   var subject = "Nuevo cambio registrado (FO-GTH-41): " + (cambio.nombreCambio || "sin nombre");
   var lineas = [
-    "Se registró un cambio en la herramienta de Gestión del Cambio (FO-GTH-41).",
+    "Se registró un cambio en Radar Cambios (FO-GTH-41).",
     "",
     "Nombre del cambio: " + (cambio.nombreCambio || "—"),
     "Tipo de cambio: " + (cambio.tipoCambio || "—"),
@@ -953,7 +953,7 @@ function buildMailtoAviso(cambio, filename, resumido){
     "",
     'Adjunto a este correo va el archivo "' + filename + '" con el detalle completo del cambio' + (cambio.documentoAdjunto ? ' (incluye el documento de soporte "'+cambio.documentoAdjunto.nombre+'")' : '') + ' (impórtalo en la pestaña "Vista Calidad, SST y Ambiental" de la herramienta con el botón "Importar reporte de un líder (JSON)" para verlo junto con el resto del consolidado).',
     "",
-    "— Enviado desde la herramienta Gestión del Cambio (FO-GTH-41)."
+    "— Enviado desde Radar Cambios (FO-GTH-41)."
   ];
   var body = lineas.join("\n");
   return "mailto:" + to + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(body);
@@ -1422,7 +1422,7 @@ function handleExportExcel(){
   var totalTerminada = list.filter(function(c){return estadoGeneral(c)==="Terminada";}).length;
   var totalVencidos = list.filter(esVencido).length;
   var resumenRowsXml = [];
-  resumenRowsXml.push(xlsxRow(1, [xlsxCell(1,1,"Control de Cambios · Gestión del Cambio (FO-GTH-41)",7)]));
+  resumenRowsXml.push(xlsxRow(1, [xlsxCell(1,1,"Radar Cambios · Control de Cambios (FO-GTH-41)",7)]));
   resumenRowsXml.push(xlsxRow(2, [xlsxCell(1,2,"Generado: " + new Date().toLocaleString("es-CO"),0)]));
   resumenRowsXml.push(xlsxRow(3, []));
   resumenRowsXml.push(xlsxRow(4, [xlsxCell(1,4,"Indicador",1), xlsxCell(2,4,"Valor",1)]));
